@@ -1,0 +1,24 @@
+# ملفات البيئة الافتراضية
+env/
+venv/
+ENV/
+.venv/
+
+# ملفات بايثون المترجمة
+*.pyc
+__pycache__/
+
+# قاعدة البيانات لو SQLite
+db.sqlite3
+
+# ملفات static التي يتم تجميعها
+/staticfiles/
+
+# ملفات الميديا (إذا مخزنة محليًا)
+media/
+
+# ملفات النظام والـ IDE
+.DS_Store
+.vscode/
+.idea/
+*.log

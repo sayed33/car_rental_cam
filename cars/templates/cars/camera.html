@@ -1,0 +1,205 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="stylesheet" href="{% static 'style.css' %}">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Car Rental Photo Project</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      background: #f0f0f0;
+    }
+    .container {
+      max-width: 500px;
+      width: 100%;
+      text-align: center;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    }
+    video, canvas, img {
+      width: 100%;
+      max-width: 100%;
+      border-radius: 10px;
+      margin-bottom: 10px;
+    }
+    input, button, select {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      font-size: 1rem;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    button {
+      cursor: pointer;
+      background-color: #007BFF;
+      color: white;
+      border: none;
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    #captured-images img {
+      max-width: 80px;
+      margin: 5px;
+      border-radius: 5px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: border-color 0.3s ease;
+    }
+    #captured-images img:hover {
+      border-color: #007BFF;
+    }
+    #confirmation-msg {
+      color: green;
+      font-weight: bold;
+      margin: 10px 0;
+      display: none;
+    }
+    .flex-row {
+      display: flex;
+      gap: 10px;
+    }
+    .flex-row button, .flex-row select {
+      flex: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <img src="{% static 'black-logo.png' %}" alt="Logo" style="width: 400px; margin-bottom: 1px;" />
+  <h2>Car Rental Photo Project</h2>
+
+    <form method="post" enctype="multipart/form-data" id="car-form">
+      {% csrf_token %}
+      <input type="text" name="car_type" placeholder="Car Type" required />
+      <input type="text" name="car_number" placeholder="Car Number" required />
+
+      <label for="camera-select">Select Camera:</label>
+      <select id="camera-select">
+        <option value="environment">Rear Camera (Back)</option>
+        <option value="user">Front Camera</option>
+      </select>
+
+      <video id="video" autoplay playsinline></video>
+      <canvas id="canvas" style="display:none;"></canvas>
+
+      <div id="captured-images" title="Click image to view full size"></div>
+
+      <input type="file" id="image-upload" name="images" multiple hidden />
+
+      <div class="flex-row">
+        <button type="button" onclick="takePhoto()">Take Photo</button>
+        <button type="button" id="auto-capture-btn">▶️ Start Auto Capture</button>
+        <button type="button" onclick="clearPhotos()">🗑️ Clear Photos</button>
+      </div>
+
+      <button type="submit">Submit Data & Photos</button>
+
+      <div id="confirmation-msg"></div>
+    </form>
+  </div>
+
+<script>
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const imageUpload = document.getElementById('image-upload');
+  const capturedImages = document.getElementById('captured-images');
+  const cameraSelect = document.getElementById('camera-select');
+  const confirmationMsg = document.getElementById('confirmation-msg');
+  const form = document.getElementById('car-form');
+  const autoCaptureBtn = document.getElementById('auto-capture-btn');
+
+  let capturedCount = 0;
+  const maxImages = 10;
+  let autoCaptureInterval = null;
+  let currentStream = null;
+
+  async function startCamera(facingMode) {
+    if (currentStream) {
+      currentStream.getTracks().forEach(track => track.stop());
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facingMode } });
+      currentStream = stream;
+      video.srcObject = stream;
+    } catch (e) {
+      alert('Cannot access camera: ' + e.message);
+    }
+  }
+
+  cameraSelect.addEventListener('change', () => {
+    startCamera(cameraSelect.value);
+  });
+
+  function takePhoto() {
+    if (capturedCount >= maxImages) {
+      alert("You can only take up to 10 photos.");
+      return;
+    }
+    const context = canvas.getContext('2d');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    context.drawImage(video, 0, 0);
+
+    canvas.toBlob(blob => {
+      const file = new File([blob], `car_image_${Date.now()}.png`, { type: "image/png" });
+
+      // Append new file to existing files in input
+      const dataTransfer = new DataTransfer();
+      if (imageUpload.files.length > 0) {
+        Array.from(imageUpload.files).forEach(f => dataTransfer.items.add(f));
+      }
+      dataTransfer.items.add(file);
+      imageUpload.files = dataTransfer.files;
+
+      // Show thumbnail
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(blob);
+      img.alt = "Captured photo";
+      img.title = "Click to view full size";
+      img.onclick = () => window.open(img.src, '_blank');
+      capturedImages.appendChild(img);
+
+      capturedCount++;
+    });
+  }
+
+  function clearPhotos() {
+    capturedImages.innerHTML = '';
+    capturedCount = 0;
+    imageUpload.value = '';
+  }
+
+  autoCaptureBtn.addEventListener('click', () => {
+    if (autoCaptureInterval) {
+      clearInterval(autoCaptureInterval);
+      autoCaptureInterval = null;
+      autoCaptureBtn.textContent = '▶️ Start Auto Capture';
+    } else {
+      autoCaptureInterval = setInterval(() => {
+        takePhoto();
+      }, 3000);
+      autoCaptureBtn.textContent = '⏸️ Stop Auto Capture';
+    }
+  });
+
+  form.addEventListener('submit', () => {
+    confirmationMsg.style.display = 'block';
+    confirmationMsg.textContent = 'Data and photos successfully submitted! Thank you.';
+  });
+
+  // Start with default camera (rear)
+  startCamera(cameraSelect.value);
+</script>
+</body>
+</html>
